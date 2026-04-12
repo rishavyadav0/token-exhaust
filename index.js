@@ -2,6 +2,7 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 
 async function testAPI() {
     let totalRequests = 50;
+    let totalTokens = 0;
 
     for (let i = 1; i <= totalRequests; i++) {
         try {
@@ -16,20 +17,58 @@ async function testAPI() {
                 })
             });
 
-            const data = await response.json();
+            console.log(`\n🧑 Request ${i}/${totalRequests}`);
+            console.log("Status:", response.status);
 
-            console.log(`Request ${i}`);
-            console.log("Length:", data.content?.length || 0);
+            // ❌ detect limit or error
+            if (!response.ok) {
+                console.log("❌ Error or limit reached!");
+                continue;
+            }
+
+            const text = await response.text();
+
+            if (!text) {
+                console.log("⚠️ Empty response (possible rate limit)");
+                continue;
+            }
+
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch {
+                console.log("⚠️ Invalid JSON:", text);
+                continue;
+            }
+
+            if (!data.content) {
+                console.log("⚠️ No content in response:", data);
+                continue;
+            }
+
+            const length = data.content.length;
+            const tokens = Math.ceil(length / 4);
+            totalTokens += tokens;
+
+            console.log("Length:", length);
+            console.log("Approx Tokens:", tokens);
+            console.log("Total Tokens:", totalTokens);
+
+            // 🛑 auto stop if too many tokens (optional safety)
+            if (totalTokens > 20000) {
+                console.log("🔥 Token limit reached, stopping...");
+                break;
+            }
 
             await delay(300);
 
         } catch (err) {
-            console.log("Error", i);
+            console.log(`❌ Error at request ${i}:`, err.message);
             await delay(2000);
         }
     }
 
-    console.log("Finished batch");
+    console.log("\n✅ Script finished");
 }
 
 testAPI();
